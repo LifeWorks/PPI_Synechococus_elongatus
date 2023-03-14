@@ -1,0 +1,82 @@
+{
+    "experiment_id": "cyano_rna",
+    "model_prefix": "seed",
+    "ckpt_name": "cyano_rna",
+    "export_verbose": 3,
+    "experiment_type": "random partition",
+    "sparse_data": false,
+    "batchsize": 32,
+    "trainset_ratio": 0.7,
+    "validset_ratio": 0.8,
+    "n_batches_eval": null,
+    "add_noise_level": 0,
+    "dT": 0.1,
+    "ode_solver": "heun",
+    "envelope_form": "tanh",
+    "envelope": 0,
+    "pert_form": "by u",
+    "ode_degree": 1,
+    "ode_last_steps": 2,
+    "n_iter_buffer": 50,
+    "n_iter_patience": 100,
+    "weight_loss": "None",
+    "l1lambda": 0.0001,
+    "l2lambda": 0.0001,
+    "model": "CellBox",
+    "pert_file": "cyano_rna/cyano_rna_input_pert.csv",
+    "expr_file": "cyano_rna/cyano_rna_input_expr.csv",
+    "node_index_file": "cyano_rna/cyano_rna_node_index.csv",
+    "n_protein_nodes": 157,
+    "n_activity_nodes": 216,
+    "n_x": 241,
+    "envelop_form": "tanh",
+    "envelop": 0,
+    "n_epoch": 10000,
+    "n_iter": 10000,
+    "stages": [
+        {
+            "nT": 100,
+            "sub_stages": [
+                {
+                    "lr_val": 0.1,
+                    "l1lambda": 0.01,
+                    "n_iter_patience": 1000
+                },
+                {
+                    "lr_val": 0.01,
+                    "l1lambda": 0.01
+                },
+                {
+                    "lr_val": 0.01,
+                    "l1lambda": 0.0001
+                },
+                {
+                    "lr_val": 0.001,
+                    "l1lambda": 1e-05
+                }
+            ]
+        },
+        {
+            "nT": 200,
+            "sub_stages": [
+                {
+                    "lr_val": 0.001,
+                    "l1lambda": 0.0001
+                }
+            ]
+        },
+        {
+            "nT": 400,
+            "sub_stages": [
+                {
+                    "lr_val": 0.001,
+                    "l1lambda": 0.0001
+                }
+            ]
+        }
+    ],
+    "ckpt_path_full": "./cyano_rna",
+    "drug_index": null,
+    "seed": 231309,
+    "root_dir": "/qfs/people/feng626/phenome/SystemModeling/CellBox"
+}
