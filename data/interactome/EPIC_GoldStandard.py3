@@ -1,7 +1,7 @@
 #!/usr/bin/python
-from __future__ import division
+
 import numpy as np
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 from xml.dom import minidom
 import requests, sys
 import os
@@ -15,9 +15,9 @@ rnd.seed(1)
 np.random.seed(1)
 
 # CORUM database got changed, so need to use new way to read the original database...
-from StringIO import StringIO
+from io import StringIO
 from zipfile import ZipFile
-from urllib import urlopen
+from urllib.request import urlopen
 
 class Goldstandard_from_Complexes():
 
@@ -43,26 +43,26 @@ class Goldstandard_from_Complexes():
 		i = 0
 		for db_clust in db_clusters:
 			tmp_clust = copy.deepcopy(db_clust.get_complexes())
-			total_complexes += len(tmp_clust.complexes.keys())
+			total_complexes += len(list(tmp_clust.complexes.keys()))
 			if tmp_clust.need_to_be_mapped == True and orthmap !="":
 				orthmap.mapComplexes(tmp_clust)
 			for compl in tmp_clust.complexes:
 				self.complexes.addComplex("%i;%s;%s" % (i, db_clust.name, compl), tmp_clust.complexes[compl])
 				i += 1
 
-		print "Total number of complexes %i in %s" % (total_complexes, self.name)
-		print "Number of complexes after ortholog mapping %i complexes in %s" % (len(self.complexes.complexes), self.name)
+		print("Total number of complexes %i in %s" % (total_complexes, self.name))
+		print("Number of complexes after ortholog mapping %i complexes in %s" % (len(self.complexes.complexes), self.name))
 
 		if found_prots != "":
 			self.complexes.remove_proteins(found_prots)
-			print "After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
+			print("After removing not indetified proteins %i number of complexes in % s" % (len(self.complexes.complexes), self.name))
 
 		self.complexes.filter_complexes()
-		print "After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
+		print("After size filtering %i number of complexes in % s" % (len(self.complexes.complexes), self.name))
 
 		self.complexes.merge_complexes()
 		self.complexes.filter_complexes()
-		print "After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name)
+		print("After mergning %i number of complexes in % s" % (len(self.complexes.complexes), self.name))
 
 		self.make_pos_neg_ppis()
 
@@ -117,7 +117,7 @@ class Goldstandard_from_Complexes():
 	# number_pruning determines how many mores times pruning you wanna do.
 	def n_fols_split(self, num_folds, number_pruning, overlap="False"):
 
-		ref_cluster_ids = self.complexes.complexes.keys()
+		ref_cluster_ids = list(self.complexes.complexes.keys())
 		out_folds = []
 
 		# create a n by n zero matrix to store the binary overlap scores.
@@ -227,8 +227,8 @@ class Goldstandard_from_Complexes():
 
 			round += 1
 
-		print "length of complex set one: " + str(len(itemindex_one))
-		print "length of complex set two: " + str(len(itemindex_zero))
+		print("length of complex set one: " + str(len(itemindex_one)))
+		print("length of complex set two: " + str(len(itemindex_zero)))
 
 		# randomize clusters
 		#rnd.shuffle(ref_cluster_ids)
@@ -272,27 +272,27 @@ class Goldstandard_from_Complexes():
 			len_over_positive = len(train[0] & evaluate[0])
 			len_over_negative = len(train[1] & evaluate[1])
 
-			print len_train_positive
-			print len_eva_positive
-			print len_train_negative
-			print len_eva_negative
+			print(len_train_positive)
+			print(len_eva_positive)
+			print(len_train_negative)
+			print(len_eva_negative)
 
 
-			print "number of train and evaluation PPIs:"
-			print len_train_positive + len_train_negative
-			print "number of overlapped PPIs:"
-			print len_over_positive + len_over_negative
+			print("number of train and evaluation PPIs:")
+			print(len_train_positive + len_train_negative)
+			print("number of overlapped PPIs:")
+			print(len_over_positive + len_over_negative)
 
 			out_folds.append((training, evaluation))
 
 			F1 = open("fold1_complexes.txt", "w")
 			F2 = open("fold2_complexes.txt", "w")
 
-			for item, values in training.get_complexes().get_complexes().iteritems():
+			for item, values in training.get_complexes().get_complexes().items():
 				F1.write(str(item) + "\t" + "\t".join(list(values)))
 				F1.write("\n")
 
-			for item, values in evaluation.get_complexes().get_complexes().iteritems():
+			for item, values in evaluation.get_complexes().get_complexes().items():
 				F2.write(str(item) + "\t" + "\t".join(list(values)))
 				F2.write("\n")
 
@@ -362,7 +362,7 @@ class Goldstandard_from_Complexes():
 	#just a trial version to test if it works.
 	def split_into_n_fold(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
 
-		tmp_clusters = self.complexes.complexes.keys()
+		tmp_clusters = list(self.complexes.complexes.keys())
 		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
 
 		#get the neagtive PPIs which detected in co-fractionation experiments (the overlap of two sets)
@@ -422,7 +422,7 @@ class Goldstandard_from_Complexes():
 	# a trial version can be used for comparsion (suggested by Florian)
 	def split_into_n_fold2(self, n_fold, val_ppis, no_overlapp=False):  # what is vak_ppis
 
-		tmp_clusters = self.complexes.complexes.keys()
+		tmp_clusters = list(self.complexes.complexes.keys())
 		allPossiblePositive, allPossibleNegative = self.complexes.getPositiveAndNegativeInteractions()
 
 		#get the neagtive PPIs which detected in co-fractionation experiments (the overlap of two sets)
@@ -476,9 +476,9 @@ class Goldstandard_from_Complexes():
 
 			training_evaluation_dictionary["turpleKey"].append((training, evaluation))
 
-			print "the number of training negatives and positives for corss validation "
-			print len(training.get_negative())
-			print len(training.get_positive())
+			print("the number of training negatives and positives for corss validation ")
+			print(len(training.get_negative()))
+			print(len(training.get_positive()))
 
 		return training_evaluation_dictionary
 
@@ -490,7 +490,7 @@ class Goldstandard_from_Complexes():
 		holdout = Goldstandard_from_Complexes("Holdout")
 		training = Goldstandard_from_Complexes("Training")
 
-		tmp_clusters = self.complexes.complexes.keys()
+		tmp_clusters = list(self.complexes.complexes.keys())
 
 		rnd.shuffle(tmp_clusters)
 
@@ -554,7 +554,7 @@ class Goldstandard_from_Complexes():
 		#holdout = Goldstandard_from_Complexes("Holdout")
 		training = Goldstandard_from_Complexes("Training")
 
-		tmp_clusters = self.complexes.complexes.keys()
+		tmp_clusters = list(self.complexes.complexes.keys())
 
 		rnd.shuffle(tmp_clusters)
 
@@ -595,7 +595,7 @@ class Goldstandard_from_Complexes():
 	def rebalance(self, ratio = 5):
 		if len(self.positive) * self.ratio > len(self.negative):
 			self.positive = set(rnd.sample(self.positive, int(len(self.negative) / self.ratio)))
-			print("Warning: not enough negative data points in reference to create desired ratio pos:%s, neg:%s" % (len(self.positive), len(self.negative)))
+			print(("Warning: not enough negative data points in reference to create desired ratio pos:%s, neg:%s" % (len(self.positive), len(self.negative))))
 		else:
 			self.negative = set(rnd.sample(self.negative, len(self.positive)*self.ratio))
 
@@ -614,7 +614,7 @@ class Intact_clusters():
 
 	def load_data(self, species):
 		intact_url = "ftp://ftp.ebi.ac.uk/pub/databases/intact/complex/2017-04-08/complextab/%s.tsv" % species
-		intact_url_FH = urllib2.urlopen(intact_url)
+		intact_url_FH = urllib.request.urlopen(intact_url)
 		intact_url_FH.readline()
 		i = 0
 		for line in intact_url_FH:
@@ -747,11 +747,11 @@ class Clusters():
 			all_proteins_count += len(prots)
 		clusterFH.close()
 
-		print "Average size of predicted complexes is: " + str((all_proteins_count)/i)
+		print("Average size of predicted complexes is: " + str((all_proteins_count)/i))
 
 	def write_cuslter_file(self, outF):
 		outFH = open(outF, "w")
-		print >> outFH, self.to_string()
+		print(self.to_string(), file=outFH)
 		outFH.close()
 
 	def to_string(self):
@@ -788,7 +788,7 @@ class Clusters():
 	# merges complexes which have an overlapp score > overlap_cutoff, and continues to merge until there is nothing left to merge
 	def merge_complexes(self):
 		merged = set()
-		allComplexes = self.complexes.keys()
+		allComplexes = list(self.complexes.keys())
 		newComplexes = {}
 
 		for i in range(len(allComplexes)):
@@ -861,10 +861,10 @@ class Clusters():
 
 	def getOverlapp(self, complexesB, cutoff = 0.5):
 		out = 0
-		for comp_ID_A in self.complexes.keys():
+		for comp_ID_A in list(self.complexes.keys()):
 			protsA = self.complexes[comp_ID_A]
 			matched = False
-			for comp_ID_B in complexesB.complexes.keys():
+			for comp_ID_B in list(complexesB.complexes.keys()):
 				protsB = complexesB.complexes[comp_ID_B]
 				if self.overlap(protsA, protsB) > cutoff:
 					matched = True
@@ -880,7 +880,7 @@ class Clusters():
 				matchingscores[ref_complex] = 0
 			for complex in self.complexes:
 				matchingscores[ref_complex] = max(matchingscores[ref_complex], self.overlap(self.complexes[complex],  reference.complexes[ref_complex]))
-		mmr = matchingscores.values()
+		mmr = list(matchingscores.values())
 		mmr_score = sum(mmr)/len(mmr)
 		return mmr_score
 
@@ -1094,7 +1094,7 @@ class Inparanoid():
 				xmldoc = self.getXML()
 				self.orthmap, self.orthgroups = self.parseXML(xmldoc)
 			else:
-				print "Taxid:%s not supported" % taxid
+				print("Taxid:%s not supported" % taxid)
 
 	def mapProtein(self, prot):
 		if prot not in self.orthmap: return None
@@ -1141,7 +1141,7 @@ class Inparanoid():
 	def getTaxId2Namemapping(self):
 		#TODO do not hard code
 		url_str = "http://inparanoid.sbc.su.se/download/current/sequences/species.mapping.inparanoid8"
-		url_FH = urllib2.urlopen(url_str)
+		url_FH = urllib.request.urlopen(url_str)
 		taxid2Name = {}
 		for line in url_FH:
 			line = line.rstrip()
@@ -1200,7 +1200,7 @@ class Inparanoid():
 			first = "H.sapiens"
 			second = self.species
 		url_str = url_str % (first, first, second)
-		xml_str = urllib2.urlopen(url_str).read()
+		xml_str = urllib.request.urlopen(url_str).read()
 		xmldoc = minidom.parseString(xml_str)
 		return xmldoc
 
