@@ -393,7 +393,7 @@ def clustering_evaluation(eval_comp, pred_comp, prefix, verbose= True):
 
 	return cluster_scores, head, composite_score
 
-def clusters_to_json(clusters, network, frac_names, eData):
+def clusters_to_json(clusters, network, frac_names=[], eData=[]):
 	graph = {}
 	for line in network:
 		edge, score = line.rsplit("\t", 1)
