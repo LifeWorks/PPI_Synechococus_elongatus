@@ -55,6 +55,10 @@ cor3 = robjects.r["Bayes_Corr_Prior3"]
 current_bayes_cor = ""
 
 # Packages required for calculating WCC
+from rpy2.robjects.packages import importr
+utils = importr('utils')
+utils.install_packages('DirichletReg', repos="https://cloud.r-project.org")
+
 rpackages.importr('wccsom')
 r_wcc = robjects.r['wcc']
 
