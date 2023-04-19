@@ -55,12 +55,13 @@ cor3 = robjects.r["Bayes_Corr_Prior3"]
 current_bayes_cor = ""
 
 # Packages required for calculating WCC
-from rpy2.robjects.packages import importr
-utils = importr('utils')
-utils.install_packages('DirichletReg', repos="https://cloud.r-project.org")
-
-rpackages.importr('wccsom')
-r_wcc = robjects.r['wcc']
+# from rpy2.robjects.packages import importr
+# utils = importr('utils')
+# utils.install_packages('wccsom', repos="https://cloud.r-project.org")
+# rpackages.importr('wccsom')
+# r_wcc = robjects.r['wcc']
+rpackages.importr('kohonen')
+r_wcc = robjects.r['xyf']
 
 # array for storing elution matrices with poission noise for PCC + Noise co-elution freature
 Poisson_cor_Mat = []
