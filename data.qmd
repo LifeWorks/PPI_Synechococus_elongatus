@@ -1,0 +1,182 @@
+---
+title: 'Experimental data of *S. elongatus*: gathering, aggregation, analysis, visualization'
+format: html
+jupyter: python3
+---
+
+# Data gathering
+
+In this part, we will gather as much as possible proteomics data from published literature and databases. Here are some sources:
+
+1. CyanoMapDB, this is a database providing cyanobacterial PPIs with experimental evidence, consisting of 52,304 PPIs among 6,789 proteins from 23 cyanobacterial species. It collected available data in UniProt, STRING, and IntAct, and mined numerous PPIs from co-fractionation MS data in cyanobacteria.
+2. Native Protein Complexes in Synechocystis sp. PCC 6803, Comparative Network Biology Discovers Protein Complexes That Underline Cellular Differentiation in Anabaena sp.; These two papers talk about how to construct the complexes using interactome data and clustering method. Our approach will be the same to use the same clustering method to analyze the CyanoMapDB interactome data of S. elongatus PCC7942
+3. There are some cofraction proteomics data of S. elongatus PCC7942 reported from the paper: "Monitoring light/dark association dynamics of multi-protein complexes in cyanobacteria using size exclusion chromatography-based proteomics". The CyanoMapDB included this dataset and use it predicted the interactome.
+
+```{python}
+import pandas as pd
+import os, sys, re
+from pathlib import Path
+home = str(Path.home())
+```
+
+```{python}
+work_dir = home + "/Dropbox/PNNL/PredPheno/SystemModeling/Modeling/S_elongatus"
+# work_dir
+```
+
+```{python}
+proteome = pd.read_excel(work_dir + "/data/interactome/Synechococcus_PCC_7942_Dataset.xlsx", sheet_name="Protein")
+interactome = pd.read_excel(work_dir + "/data/interactome/Synechococcus_PCC_7942_Dataset.xlsx", sheet_name="PPI")
+```
+
+```{python}
+interactome
+```
+
+```{python}
+cl1_input = interactome[["Protein A", "Protein B", "PPI index"]]
+input_file = work_dir + "/data/interactome/ClusterONE_input.tsv"
+cl1_input.to_csv(input_file, sep='\t', index=None, header=None)
+```
+
+```{python}
+import subprocess
+output_file = work_dir + "/data/interactome/ClusterONE_output.tsv"
+output_file_csv = work_dir + "/data/interactome/ClusterONE_output.csv"
+with open(output_file, 'w') as output:
+    subprocess.run(["java", "-jar", home + "/Dropbox/PNNL/PredPheno/SystemModeling/tools/cluster_one-1.2.jar", "-s", "3", "-d", "0.5", "-f", "edge_list", "-F", "plain", input_file], stdout=output)
+with open(output_file_csv, 'w') as output:
+    subprocess.run(["java", "-jar", home + "/Dropbox/PNNL/PredPheno/SystemModeling/tools/cluster_one-1.2.jar", "-s", "3", "-d", "0.5", "-f", "edge_list", "-F", "csv", input_file], stdout=output)
+```
+
+```{python}
+sys.path.append("./data/interactome")
+import utils3 as util3
+```
+
+```{python}
+import GoldStandard as GS
+# Evaluating predicted clusters
+pred_clusters = GS.Clusters(False)
+pred_clusters.read_file(output_file)
+```
+
+```{python}
+network_df = pd.read_csv(input_file, sep='\t', header=None)
+network_df.shape
+```
+
+```{python}
+network_df.columns = ["ProtA", "ProtB", "Score"]
+```
+
+```{python}
+complex_idx = []
+complex_num = []
+clusters = pred_clusters
+for i in range(network_df.shape[0]):
+    complex_idx_per_edge = []
+    for complex in clusters.complexes:
+        prots = list(clusters.complexes[complex])
+        if network_df.iloc[i,0] in prots and network_df.iloc[i,1] in prots:
+            complex_idx_per_edge.append(complex)
+    complex_num.append(len(complex_idx_per_edge))
+    complex_idx.append(complex_idx_per_edge)
+complexes_df = network_df.copy()
+complexes_df["Complex idx"] = complex_idx
+complexes_df["Complex num"] = complex_num
+complexes_df
+```
+
+```{python}
+set(complexes_df["Complex num"])
+```
+
+```{python}
+complexes = complexes_df[complexes_df["Complex num"] > 0].copy()
+print(complexes.shape)
+complexes = complexes.explode("Complex idx")
+complexes.head(20)
+```
+
+```{python}
+complexes["Source"] = complexes["ProtA"] + '@Complex_' + complexes["Complex idx"].astype(str)
+complexes["Target"] = complexes["ProtB"] + '@Complex_' + complexes["Complex idx"].astype(str)
+```
+
+```{python}
+complexes
+```
+
+```{python}
+import networkx as nx
+```
+
+```{python}
+G=nx.from_pandas_edgelist(complexes, "Source", "Target", 'Score')
+```
+
+```{python}
+# G.nodes
+```
+
+```{python}
+import random
+import matplotlib.pyplot as plt
+plt.style.use('default')
+plt.rcParams['figure.facecolor'] = 'white'
+
+plt.figure(1, figsize=(8, 8))
+# layout graphs with positions using graphviz neato
+pos = nx.nx_agraph.graphviz_layout(G, prog="neato")
+# color nodes the same in each connected subgraph
+C = (G.subgraph(c) for c in nx.connected_components(G))
+for i,g in enumerate(C):
+    # g.graph_attr_dict_factory()["label"] = "Complex_" + str(i)
+    c = [random.random()] * nx.number_of_nodes(g)  # random color...
+    nx.draw(g, pos, node_size=40, node_color=c, vmin=0.0, vmax=1.0, with_labels=False)
+# plt.show()
+plt.savefig(work_dir + '/data/interactome/complexes.pdf', bbox_inches='tight')
+```
+
+```{python}
+from ipycytoscape import *
+cyto = CytoscapeWidget()
+```
+
+```{python}
+[cyto.graph.add_graph_from_networkx(G.subgraph(c)) for c in nx.connected_components(G)];
+```
+
+```{python}
+display(cyto)
+```
+
+```{python}
+cyto.set_style([{
+                        'selector': 'node',
+                        'css': {
+                            'content': 'data(name)',
+                            'text-valign': 'center',
+                            'color': 'white',
+                            'text-outline-width': 2,
+                            'text-outline-color': 'green',
+                            'background-color': 'green'
+                        }
+                        },
+                        {
+                        'selector': ':selected',
+                        'css': {
+                            'background-color': 'black',
+                            'line-color': 'black',
+                            'target-arrow-color': 'black',
+                            'source-arrow-color': 'black',
+                            'text-outline-color': 'black'
+                        }}
+                        ])
+```
+
+```{python}
+display(cyto)
+```
+
