@@ -1,0 +1,160 @@
+---
+jupyter: python3
+---
+
+```{python}
+import os 
+import numpy as np
+import pandas as pd
+from scipy import stats
+import statsmodels.stats.multitest as smt
+```
+
+```{python}
+def compile_W_to_3d_array(folder_path):
+    # List all files in the folder
+    file_list = os.listdir(folder_path)
+
+    # Filter only the desired CSV files
+    csv_files = [file for file in file_list if file.startswith('best.W.rank_') and file.endswith('.csv')]
+
+    # Read and store each CSV file in a list
+    dataframes = [pd.read_csv(os.path.join(folder_path, csv_file), index_col=0) for csv_file in csv_files]
+
+    # Get the shape and inidices 
+    shape = dataframes[0].shape
+    index = dataframes[0].index
+
+    # Create a 3D array of zeros with the dimensions (rows, columns, number_of_files)
+    array_3d = np.zeros((shape[0], shape[1], len(dataframes)))
+
+    # Fill the 3D array with the values from the DataFrames
+    for i, df in enumerate(dataframes):
+        array_3d[:, :, i] = df.values
+
+    return index, array_3d
+
+def find_significant_indices_fdr(three_d_array, alpha=0.05):
+    rows, columns, _ = three_d_array.shape
+    p_values = []
+
+    # Perform one-sample t-tests and collect p-values
+    for i in range(rows):
+        for j in range(columns):
+            samples = three_d_array[i, j]
+            _, p_value = stats.ttest_1samp(samples, 0)
+            p_values.append(p_value)
+            
+    # Filter out NaN values
+    non_nan_indices = ~np.isnan(p_values)
+    non_nan_p_values = [p_value for p_value in p_values if not np.isnan(p_value)]
+
+    # Apply FDR correction using Benjamini-Hochberg procedure
+    rejected, corrected_p_values = smt.multipletests(non_nan_p_values, alpha=alpha, method='fdr_bh')[:2]
+
+    # Map rejected and corrected_p_values back to the original size, filling with False and NaN, respectively
+    rejected_full = np.full_like(p_values, False, dtype=bool)
+    rejected_full[non_nan_indices] = rejected
+
+    corrected_p_values_full = np.full_like(p_values, np.nan)
+    corrected_p_values_full[non_nan_indices] = corrected_p_values
+
+    # Find the significant indices
+    significant_indices = [(i, j) for k, (i, j) in enumerate([(r, c) for r in range(rows) for c in range(columns)]) if rejected_full[k]]
+
+    return significant_indices
+
+
+def calc_interaction_metrics(three_d_array, index, alpha=0.05):
+    rows, columns, _ = three_d_array.shape
+    p_values = []
+    mean_values = []
+    std_values = []
+    q1_values = []
+    q2_values = []
+    q3_values = []
+    i_values = []
+    j_values = []
+
+    # Perform one-sample t-tests and collect statistics
+    for i in range(rows):
+        for j in range(columns):
+            samples = three_d_array[i, j]
+            _, p_value = stats.ttest_1samp(samples, 0)
+            p_values.append(p_value)
+            
+            mean = np.mean(samples)
+            mean_values.append(mean)
+            
+            std_dev = np.std(samples, ddof=1)
+            std_values.append(std_dev)
+            
+            quantile_25 = np.percentile(samples, 25)
+            q1_values.append(quantile_25)
+            
+            quantile_50 = np.percentile(samples, 50)
+            q2_values.append(quantile_50)
+            
+            quantile_75 = np.percentile(samples, 75)
+            q3_values.append(quantile_75)
+            
+            i_values.append(i)
+            j_values.append(j)
+
+
+    # Create a dataframe
+    interaction_metrics_df = pd.DataFrame({
+        'i': i_values,
+        'j': j_values,
+        'mean': mean_values,
+        'std_dev': std_values,
+        'Q1': q1_values,
+        'median': q2_values,
+        'Q3': q3_values,
+        'p_values': p_values,
+    })
+    
+    interaction_metrics_df[['affector', 'target']] = [(index[val1], index[val2]) for val1, val2 in 
+                                                      zip(interaction_metrics_df['j'], interaction_metrics_df['i'])]
+    
+    valid_metrics_df = interaction_metrics_df.dropna().copy()
+
+    rejected, corrected_p_values = smt.multipletests(valid_metrics_df['p_values'].values, alpha=1e-12, method='fdr_bh')[:2]
+    valid_metrics_df['q_values'] = corrected_p_values
+    final_df = valid_metrics_df[['affector', 'target', 'mean', 'std_dev', 'Q1', 'median', 'Q3', 'p_values', 'q_values']]
+    final_df[final_df['q_values'] < 1e-12]
+
+    return final_df
+```
+
+```{python}
+# Usage example
+folder_path = "/Users/feng626/workspace/data/PredPheno/cellbox/results/top1k/"
+index, results = compile_W_to_3d_array(folder_path)
+```
+
+```{python}
+sign_int = find_significant_indices_fdr(results, alpha=1e-12)
+sign_interactions = [(index[val2], index[val1]) for val1, val2 in sign_int]
+sign_interactions_df = pd.DataFrame(sign_interactions, columns = ['affector', 'target'])
+sign_interactions_df
+```
+
+```{python}
+metrics_df = calc_interaction_metrics(results, index, alpha=1e-12)
+```
+
+```{python}
+metrics_df
+```
+
+```{python}
+#len(corrected_p_values[corrected_p_values < 1e-12])
+len(metrics_df[metrics_df['q_values'] < 1e-12])
+```
+
+```{python}
+metrics_df.to_csv('./data/transcriptome/Cellbox_res/top1k_summary.csv', index=False)
+```
+
+

@@ -1,0 +1,390 @@
+---
+title: Visualization of these graphs
+jupyter: python3
+---
+
+```{python}
+---
+title: "Developing notebook"
+format: html
+---
+```
+
+```{python}
+import os, sys, re, csv
+from pathlib import Path
+home = str(Path.home())
+import matplotlib.pyplot as plt
+plt.style.use('default')
+plt.rcParams['figure.facecolor'] = 'white'
+import numpy as np
+import scipy as sp
+import pandas as pd
+from scipy import optimize as opt
+from scipy.integrate import odeint
+from scipy.interpolate import interp1d
+from scipy.stats import pearsonr
+import scipy.odr as odr
+import networkx as nx
+import seaborn as sns
+import plotly.express as px
+
+import utils as ut
+```
+
+Here we read the whole matrix of Ws and try to understand the distributions.
+
+The dimension of the matrix is:
+
+```{python}
+result_dir = home +"/workspace/data/PredPheno/cellbox/results/20230405_cyano_rna_5c08105256c016c79573735ab13502a2/"
+analysis_dir = home + "/Dropbox/PNNL/PredPheno/SystemModeling/Modeling/S_elongatus/cellbox/RNA/20230408_analysis/"
+```
+
+```{python}
+result_folders = [f for f in os.listdir(result_dir) if os.path.isdir(os.path.join(result_dir, f))]
+result_scores = []
+for folder in result_folders:
+    # print(folder)
+    seed = int(re.findall(r'\d+\.\d+|\d+', folder)[0])
+    w_files = [listed for listed in os.listdir(result_dir + folder) if "best.W" in listed]
+    # print(w_files)
+    result_scores += [[seed] + [float(num) if '.' in num else int(num) for num in re.findall(r'\d+\.\d+|\d+', file)] for file in w_files]
+result_scores = pd.DataFrame(result_scores, columns=["seed", "rep", "score"])
+```
+
+```{python}
+result_scores.hist(column="score", bins=100)
+```
+
+```{python}
+scores_1000 = result_scores.sort_values(by="score", ascending=True).head(1000).copy()
+scores_1000
+```
+
+This part is to check if the replites are similar to each other in the same run than the ones from different runs
+
+```{python}
+# scores = scores_1000.copy()
+# pairwise_dist = []
+# for i in range(scores.shape[0]):
+#     for j in range(i+1, scores.shape[0]):
+#         a_seed = '{:0>{}}'.format(str(scores.iloc[i, 0]), 3)
+#         b_seed = '{:0>{}}'.format(str(scores.iloc[j, 0]), 3)
+#         a_rep = str(scores.iloc[i, 1])
+#         b_rep = str(scores.iloc[j, 1])
+#         a_file = [listed for listed in os.listdir(result_dir + "seed_" + a_seed) if a_rep + "_best.W" in listed][0]
+#         b_file = [listed for listed in os.listdir(result_dir + "seed_" + b_seed) if b_rep + "_best.W" in listed][0]
+#         a_df = pd.read_csv(result_dir + "seed_" + a_seed + '/' + a_file, index_col=0)
+#         b_df = pd.read_csv(result_dir + "seed_" + b_seed + '/' + b_file, index_col=0)
+#         dist = [np.linalg.norm(a_df.to_numpy() - b_df.to_numpy())]
+#         if a_seed == b_seed:
+#             dist += ["Same run"]
+#         else:
+#             dist += ["Different run"]
+#         pairwise_dist += [dist]
+# pairwise_dist = pd.DataFrame(pairwise_dist, columns=["dist", "run"])
+# pairwise_dist.to_pickle(analysis_dir + "pairwise_distances_top1k.pkl")
+```
+
+```{python}
+pairwise_dist = pd.read_pickle(analysis_dir + "pairwise_distances_top1k.pkl")
+fig = px.violin(pairwise_dist, x="run", y="dist")
+fig.show()
+```
+
+It seems the distribution is not very different. So I think we can just use the top 1000. We now copy all the files into some new folder.
+
+```{python}
+new_results_dir = result_dir + "top1k/"
+os.makedirs(new_results_dir) if not os.path.exists(new_results_dir) else None
+scores = scores_1000.copy()
+for i in range(scores.shape[0]):
+    seed = '{:0>{}}'.format(str(scores.iloc[i, 0]), 3)
+    rep = str(scores.iloc[i, 1])
+    file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.W" in listed][0]
+    os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.W.rank_" + str(i) + ".csv")
+    file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.alpha" in listed][0]
+    os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.alpha.rank_" + str(i) + ".csv")
+    file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.eps" in listed][0]
+    os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.eps.rank_" + str(i) + ".csv")
+    file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.y_hat" in listed][0]
+    os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.y_hat.rank_" + str(i) + ".csv")
+```
+
+
+Now let's check the training loss of the best case
+
+```{python}
+single_result = result_dir + "/seed_309"
+evals = pd.read_csv(single_result + '/record_eval.csv', index_col=False)
+reps_info = evals[evals["epoch"] == -1].copy()
+reps_info
+```
+
+```{python}
+epoch_idx = [(reps_info.index.to_list()[2*(i)+1] + 1) for i in range(6)]
+epoch_nums = [epoch_idx[i] - epoch_idx[i-1] if i > 0 else epoch_idx[i] for i in range(len(epoch_idx))]
+evals["Replication"] = ut.flatten([[j+1] * n for j, n in enumerate(epoch_nums)])
+```
+
+```{python}
+evals
+```
+
+```{python}
+#| label: fig_training_validation_loss
+#| fig-cap: Plots of training and validation loss
+```
+
+```{python}
+matrix_w = pd.read_csv(w_file, header=None)
+print(matrix_w.shape)
+# print(matrix_w.abs().max().max())
+# print(matrix_w.abs().min().min())
+```
+
+```{python}
+df = matrix_w.copy()
+df[df.abs() == 0] = np.nan
+print(df.abs().max().max())
+print(df.abs().min().min())
+print(df.max().max())
+print(df.min().min())
+```
+
+Ploting the histogram of all values:
+
+```{python}
+#| label: fig_w_dist
+#| fig-cap: Distribution of Ws
+matrix_w.stack().plot.hist(bins=100);
+```
+
+Now if we set arbitrary thresholds say abs(w) > 0.1
+
+```{python}
+#| label: fig_w_dist_0.1
+#| fig-cap: Distribution of Ws
+df = matrix_w.copy()
+df[df.abs() < 0.1] = np.nan
+df.stack().plot.hist(bins=100);
+# df[df>0].stack().plot.hist(bins=100);
+# df[df<0].stack().plot.hist(bins=100);
+```
+
+Now if we increaset to 0.5
+
+```{python}
+#| label: fig_w_dist_0.5
+#| fig-cap: Distribution of Ws
+df = matrix_w.copy()
+df[df.abs() < 0.5] = np.nan
+df.stack().plot.hist(bins=100);
+# df[df>0].stack().plot.hist(bins=100);
+# df[df<0].stack().plot.hist(bins=100);
+```
+
+It seems the histogram can not reflect what are the values distritbute, here is what we can do:
+1) transform all the values to absolute 
+2) replace zeros with nan
+3) log10 transform all the values
+4) replot the histogram
+
+```{python}
+#| label: fig_w_log10_dist
+#| fig-cap: Distribution of log10(abs(Ws))
+matrix_wlog10 = np.log10(matrix_w.abs().replace(0, np.nan))
+matrix_wlog10.stack().plot.hist(bins=100);
+```
+
+Now based on the distribution of log10(abs(Ws)), we can fairly say that $10^{-3}$ is a good candidate for the cut-off. We take all values whose absotlute is smaller than $10^{-3}$ will be $0$ and considered as no interactions.
+
+Now if we plot them with their actual values after filtering:
+
+```{python}
+matrix_w_temp = matrix_wlog10.copy().replace(0, np.nan)
+matrix_w_temp[matrix_w_temp <= -3] = np.nan
+matrix_w_temp += 3.2
+matrix_w_temp[matrix_w < 0] = - matrix_w_temp[matrix_w < 0]
+matrix_w_temp.stack().plot.hist(bins=100).set_xticks([-3.2, -2.2, -1.2 , -0.2, 0.2, 1.2, 2.2, 3.2], ["-1", "-0.1", "-0.01", "-0.001", "0.001", "0.01", "0.1", "1"], rotation=60);
+```
+
+When transform back to linear scale it looks like:
+
+```{python}
+matrix_w_new_log = matrix_wlog10.copy().replace(0, np.nan)
+matrix_w_new_log[matrix_w_new_log <= -3] = np.nan
+matrix_w_new_log += 3.0
+matrix_w_new_log[matrix_w < 0] = - matrix_w_new_log[matrix_w < 0]
+
+matrix_w_new = matrix_wlog10.copy().replace(0, np.nan)
+matrix_w_new[matrix_w_new <= -3] = np.nan
+matrix_w_new = 10 ** matrix_w_new
+matrix_w_new[matrix_w < 0] = - matrix_w_new[matrix_w < 0]
+matrix_w_new.stack().plot.hist(bins=100);
+```
+
+Now we construct the network to see the structure of model:
+
+First, we plot the heatmaps of the interactions: 
+
+```{python}
+#| label: fig_w_log10_heatmap
+#| fig-cap: Heatmap of Ws
+sns.heatmap(matrix_w_new_log, cmap="coolwarm", center=0, cbar_kws={'ticks': [-3, -2, -1, 0, 1, 2, 3]}).collections[0].colorbar.set_ticklabels([-1, -0.1, -0.01, 0, 0.01, 0.1, 1]);
+```
+
+If we color them using linear scale values:
+
+```{python}
+#| label: fig_w_heatmap
+#| fig-cap: Heatmap of Ws in linear scale
+sns.heatmap(matrix_w_new, cmap="coolwarm", center=0);
+```
+
+And if we set the threshold as 0.01
+
+```{python}
+#| label: fig_w_log10_heatmap_0.01
+#| fig-cap: Heatmap of Ws
+df = matrix_w_new_log.copy()
+df[df.abs() < 1] = np.nan
+sns.heatmap(df, cmap="coolwarm", center=0, cbar_kws={'ticks': [-3, -2, -1, 0, 1, 2, 3]}).collections[0].colorbar.set_ticklabels([-1, -0.1, -0.01, 0, 0.01, 0.1, 1]);
+```
+
+```{python}
+#| label: fig_w_heatmap_0.01
+#| fig-cap: Heatmap of Ws in linear scale
+df = matrix_w_new.copy()
+df[df.abs() < 0.01] = np.nan
+sns.heatmap(df, cmap="coolwarm", center=0);
+```
+
+What about 0.1?
+
+```{python}
+#| label: fig_w_log10_heatmap_0.1
+#| fig-cap: Heatmap of Ws
+df = matrix_w_new_log.copy()
+df[df.abs() < 2] = np.nan
+sns.heatmap(df, cmap="coolwarm", center=0, cbar_kws={'ticks': [-3, -2, -1, 0, 1, 2, 3]}).collections[0].colorbar.set_ticklabels([-1, -0.1, -0.01, 0, 0.01, 0.1, 1]);
+```
+
+```{python}
+#| label: fig_w_heatmap_0.1
+#| fig-cap: Heatmap of Ws in linear scale
+df = matrix_w_new.copy()
+df[df.abs() < 0.1] = np.nan
+sns.heatmap(df, cmap="coolwarm", center=0);
+```
+
+```{python}
+print(matrix_w_new.abs().max().max())
+print(matrix_w_new.abs().min().min())
+```
+
+The heatmap is showing the perturbations and phenotypes are connected with molecular signatures. And it is why there are missing values between the perturbations and phenotypes.
+
+Next, we construct network to see what subnetworks are generated. 
+
+```{python}
+df = matrix_w.copy()
+df[df.abs() < 0.001] = 0
+# df[df <= -0.001] = -1
+# df[df >= 0.001] = 1
+G = nx.from_numpy_array(df.to_numpy(), create_using=nx.DiGraph())
+df001 = matrix_w.copy()
+df001[df001.abs() < 0.01] = 0
+# df001[df001 <= -0.01] = -1
+# df001[df001 >= 0.01] = 1
+G001 = nx.from_numpy_array(df001.to_numpy(), create_using=nx.DiGraph())
+df01 = matrix_w.copy()
+df01[df01.abs() < 0.1] = 0
+# df01[df01 <= -0.1] = -1
+# df01[df01 >= 0.1] = 1
+G01 = nx.from_numpy_array(df01.to_numpy(), create_using=nx.DiGraph())
+# df05 = matrix_w.copy()
+# df05[df05.abs() < 0.5] = 0
+# df05[df05.abs() <= -0.5] = -1
+# df05[df05.abs() >= 0.5] = 1
+# G05 = nx.from_numpy_array(df05.to_numpy(), create_using=nx.DiGraph())
+# df09 = matrix_w.copy()
+# df09[df09.abs() < 0.9] = 0
+# df09[df09.abs() <= -0.9] = -1
+# df09[df09.abs() >= 0.9] = 1
+# G09 = nx.from_numpy_array(df09.to_numpy(), create_using=nx.DiGraph())
+# df1 = matrix_w.copy()
+# df1[df1.abs() < 1] = 0
+# df1[df1.abs() <= -1] = -1
+# df1[df1.abs() >= 1] = 1
+# G1 = nx.from_numpy_array(df1.to_numpy(), create_using=nx.DiGraph())
+```
+
+Calculate the connected components with differently filtered networks.
+
+```{python}
+G_comp = [len(c) for c in sorted(nx.strongly_connected_components(G), key=len, reverse=True)]
+G01_comp = [len(c) for c in sorted(nx.strongly_connected_components(G01), key=len, reverse=True)]
+G001_comp = [len(c) for c in sorted(nx.strongly_connected_components(G001), key=len, reverse=True)]
+# G05_comp = [len(c) for c in sorted(nx.strongly_connected_components(G05), key=len, reverse=True)]
+# G09_comp = [len(c) for c in sorted(nx.strongly_connected_components(G09), key=len, reverse=True)]
+# G1_comp = [len(c) for c in sorted(nx.strongly_connected_components(G1), key=len, reverse=True)]
+print("Network with 1e-3 threshold has", len(G_comp), " strongly connected components. And their sizes are:")
+print(G_comp)
+print("Network with 1e-2 threshold has", len(G001_comp), " strongly connected components. And their sizes are:")
+print(G001_comp)
+print("Network with 1e-1 threshold has", len(G01_comp), " strongly connected components. And their sizes are:")
+print(G01_comp)
+# print("Network with 5e-1 threshold has", len(G05_comp), " strongly connected components. And their sizes are:")
+# print(G05_comp)
+# print("Network with 9e-1 threshold has", len(G09_comp), " strongly connected components. And their sizes are:")
+# print(G09_comp)
+# print("Network with 1 threshold has", len(G1_comp), " strongly connected components. And their sizes are:")
+# print(G1_comp)
+```
+
+
+TODO: Drop all zeros
+
+
+```{python}
+nodes_num = 157
+```
+
+Networks of 0.001
+
+```{python}
+df = matrix_w.copy()
+df[df.abs() < 0.001] = 0
+G = nx.from_numpy_array(df.iloc[:nodes_num, :nodes_num].to_numpy(), create_using=nx.DiGraph())
+pos = nx.circular_layout(G)
+nx.draw_circular(G)
+```
+
+Networks of 0.01
+
+```{python}
+df = matrix_w.copy()
+df[df.abs() < 0.01] = 0
+G = nx.from_numpy_array(df.iloc[:nodes_num, :nodes_num].to_numpy(), create_using=nx.DiGraph())
+pos = nx.circular_layout(G)
+nx.draw_circular(G)
+```
+
+Networks of 0.1
+
+```{python}
+df = matrix_w.copy()
+df[df.abs() < 0.1] = 0
+G = nx.from_numpy_array(df.iloc[:nodes_num, :nodes_num].to_numpy(), create_using=nx.DiGraph())
+pos = nx.circular_layout(G)
+nx.draw_circular(G)
+```
+
+Now what is more important is whether cellbox has a good enough model. Need to check the loss function.
+
+```{python}
+df
+```
+
