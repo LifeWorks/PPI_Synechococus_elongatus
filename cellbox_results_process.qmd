@@ -37,8 +37,8 @@ Here we read the whole matrix of Ws and try to understand the distributions.
 The dimension of the matrix is:
 
 ```{python}
-result_dir = home +"/workspace/data/PredPheno/cellbox/results/20230405_cyano_rna_5c08105256c016c79573735ab13502a2/"
-analysis_dir = home + "/Dropbox/PNNL/PredPheno/SystemModeling/Modeling/S_elongatus/cellbox/RNA/20230408_analysis/"
+results_dir = home +"/workspace/data/ppi3/cellbox/results/"
+analyses_dir = home + "/Dropbox/PNNL/PredPheno/TA3_multiscale_model/S.elongatus/cellbox/RNA/20230608_analyses/"
 ```
 
 ```{python}

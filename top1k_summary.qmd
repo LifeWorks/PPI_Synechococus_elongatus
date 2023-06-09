@@ -129,7 +129,7 @@ def calc_interaction_metrics(three_d_array, index, alpha=0.05):
 
 ```{python}
 # Usage example
-folder_path = "/Users/feng626/workspace/data/PredPheno/cellbox/results/top1k/"
+folder_path = "/Users/feng626/workspace/data/ppi3/cellbox/results/top1k/"
 index, results = compile_W_to_3d_array(folder_path)
 ```
 
