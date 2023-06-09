@@ -42,6 +42,8 @@ analyses_dir = home + "/Dropbox/PNNL/PredPheno/TA3_multiscale_model/S.elongatus/
 ```
 
 ```{python}
+experiment = "20230405_cyano_rna"
+result_dir = results_dir + experiment + "/"
 result_folders = [f for f in os.listdir(result_dir) if os.path.isdir(os.path.join(result_dir, f))]
 result_scores = []
 for folder in result_folders:
@@ -51,15 +53,9 @@ for folder in result_folders:
     # print(w_files)
     result_scores += [[seed] + [float(num) if '.' in num else int(num) for num in re.findall(r'\d+\.\d+|\d+', file)] for file in w_files]
 result_scores = pd.DataFrame(result_scores, columns=["seed", "rep", "score"])
-```
-
-```{python}
-result_scores.hist(column="score", bins=100)
-```
-
-```{python}
+# result_scores.hist(column="score", bins=100)
 scores_1000 = result_scores.sort_values(by="score", ascending=True).head(1000).copy()
-scores_1000
+# scores_1000
 ```
 
 This part is to check if the replites are similar to each other in the same run than the ones from different runs
@@ -96,8 +92,10 @@ fig.show()
 It seems the distribution is not very different. So I think we can just use the top 1000. We now copy all the files into some new folder.
 
 ```{python}
-new_results_dir = result_dir + "top1k/"
+new_results_dir = results_dir + experiment + "_top1k/"
 os.makedirs(new_results_dir) if not os.path.exists(new_results_dir) else None
+scores_1000 = scores_1000.reset_index(drop=True)
+scores_1000.to_csv(new_results_dir + "scores_top1k.csv")
 scores = scores_1000.copy()
 for i in range(scores.shape[0]):
     seed = '{:0>{}}'.format(str(scores.iloc[i, 0]), 3)
@@ -112,6 +110,41 @@ for i in range(scores.shape[0]):
     os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.y_hat.rank_" + str(i) + ".csv")
 ```
 
+Now we can process all the five new experiemnts
+
+```{python}
+for experiment in ["Cellbox_t" + str(i) for i in range(1,6)]:
+    
+    result_dir = results_dir + experiment + "/"
+    result_folders = [f for f in os.listdir(result_dir) if os.path.isdir(os.path.join(result_dir, f))]
+    result_scores = []
+    for folder in result_folders:
+        # print(folder)
+        seed = int(re.findall(r'\d+\.\d+|\d+', folder)[0])
+        w_files = [listed for listed in os.listdir(result_dir + folder) if "best.W" in listed]
+        # print(w_files)
+        result_scores += [[seed] + [float(num) if '.' in num else int(num) for num in re.findall(r'\d+\.\d+|\d+', file)] for file in w_files]
+    result_scores = pd.DataFrame(result_scores, columns=["seed", "rep", "score"])
+    # result_scores.hist(column="score", bins=100)
+    scores_1000 = result_scores.sort_values(by="score", ascending=True).head(1000).copy()
+
+    new_results_dir = results_dir + experiment + "_top1k/"
+    os.makedirs(new_results_dir) if not os.path.exists(new_results_dir) else None
+    scores_1000 = scores_1000.reset_index(drop=True)
+    scores_1000.to_csv(new_results_dir + "scores_top1k.csv")
+    scores = scores_1000.copy()
+    for i in range(scores.shape[0]):
+        seed = '{:0>{}}'.format(str(scores.iloc[i, 0]), 3)
+        rep = str(scores.iloc[i, 1])
+        file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.W" in listed][0]
+        os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.W.rank_" + str(i) + ".csv")
+        file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.alpha" in listed][0]
+        os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.alpha.rank_" + str(i) + ".csv")
+        file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.eps" in listed][0]
+        os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.eps.rank_" + str(i) + ".csv")
+        file = [listed for listed in os.listdir(result_dir + "seed_" + seed) if rep + "_best.y_hat" in listed][0]
+        os.rename(result_dir + "seed_" + seed + '/' + file, new_results_dir + "best.y_hat.rank_" + str(i) + ".csv")
+```
 
 Now let's check the training loss of the best case
 
@@ -387,4 +420,5 @@ Now what is more important is whether cellbox has a good enough model. Need to c
 ```{python}
 df
 ```
+
 
