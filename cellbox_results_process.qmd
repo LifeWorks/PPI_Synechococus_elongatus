@@ -148,6 +148,7 @@ for experiment in ["Cellbox_t" + str(i) for i in range(1,6)]:
 ```
 
 ```{python}
+results_dir = home +"/workspace/data/ppi3/cellbox/results/20230807/"
 for experiment in ["central_carbon" + str(i) for i in ["", "_de", "_ps", "_ps_de"]]:
     
     result_dir = results_dir + experiment + "/"
